@@ -62,14 +62,40 @@ def load_api_keys(config):
             if line.strip() and '=' in line:
                 key, value = line.strip().split('=', 1)
                 api_keys[key] = value
+
+    # 检查每个配置是否有对应的key
+    for endpoint in config:
+        name = endpoint['name'].replace(' ', '_').upper()
+        key_name = f"{name}_API_KEY"
+        if key_name not in api_keys:
+            while True:
+                api_key = input(f"找不到 {endpoint['name']} 的 API key，是否要添加？(y/n): ").strip().lower()
+                if api_key == 'y':
+                    api_key = input(f"请输入 {endpoint['name']} 的 API key: ").strip()
+                    if api_key.startswith('sk-') and len(api_key) > 30:
+                        try:
+                            encrypted_key = encrypt_api_key(api_key)
+                            api_keys[key_name] = encrypted_key
+                            with open('.env', 'a') as env_file:
+                                env_file.write(f"{key_name}={encrypted_key}\n")
+                            break
+                        except Exception as e:
+                            print(f"加密API key时出错: {str(e)}")
+                            continue
+                    else:
+                        print("无效的API key格式，应以'sk-'开头且长度大于30")
+                elif api_key == 'n':
+                    break
+                else:
+                    print("请输入 y 或 n")
+
     return api_keys if api_keys else None
 
 def test_endpoint(endpoint, api_keys):
     name = endpoint['name'].replace(' ', '_').upper()
     api_key = api_keys.get(f"{name}_API_KEY")
     if not api_key:
-        print(f"找不到 {endpoint['name']} 的 API key")
-        return None
+        return -1, f"找不到 {endpoint['name']} 的 API key"
         
     client = openai.OpenAI(
         api_key=decrypt_api_key(api_key),
@@ -87,7 +113,7 @@ def test_endpoint(endpoint, api_keys):
         )
         return time.time() - start_time, response.choices[0].message.content
     except Exception as e:
-        return -1, str(e)
+        return -1, f'发生错误：{str(e)}；耗时：{time.time() - start_time}s'
 
 def main():
     # 检查并创建配置文件
@@ -101,26 +127,8 @@ def main():
         print("配置文件格式错误，应为列表")
         return
 
-    # 检查API keys
+    # 加载并检查API keys
     api_keys = load_api_keys(config)
-    if api_keys is None:
-        api_keys = {}
-        for endpoint in config:
-            while True:
-                api_key = input(f"请输入 {endpoint['name']} 的 API key: ").strip()
-                if api_key.startswith('sk-') and len(api_key) > 30:
-                    try:
-                        # 先加密再保存
-                        encrypted_key = encrypt_api_key(api_key)
-                        name = endpoint['name'].replace(' ', '_').upper()
-                        api_keys[f"{name}_API_KEY"] = encrypted_key
-                        break
-                    except Exception as e:
-                        print(f"加密API key时出错: {str(e)}")
-                        continue
-                else:
-                    print("无效的API key格式，应以'sk-'开头且长度大于30")
-        save_api_keys(config, list(api_keys.values()))
 
     # 测试所有端点
     results = []
