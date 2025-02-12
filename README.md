@@ -1,6 +1,6 @@
 # API 延迟测试工具
 
-本项目是一个基于 OpenAI 库的 API 连通性测试工具，用于测试多个 API 端点的响应时间和正确性。通过配置文件定义要测试的 API 端点，并自动加密存储 API 密钥。
+本项目是一个基于 OpenAI 库的 API 连通性测试工具，用于测试多个 API 端点的响应时间，TTFT 和连接正确性。通过配置文件定义要测试的 API 端点，并自动加密存储 API 密钥。
 
 ## 配置文件说明
 
@@ -37,17 +37,34 @@ api_key = "your_api_key_here"
 
 4. 如果某个端点缺少 API 密钥，程序会提示输入并自动加密存储。
 
+## 测试流程
+
+1. 程序会为每个端点发起多个请求（默认3次）
+2. 计算每次请求的响应时间
+3. 记录最后一次完整的响应内容
+4. 如果请求失败，会记录错误信息并继续测试其他端点
+
 ## 输出结果
 
 测试完成后，程序会输出每个端点的响应时间和测试结果。示例输出：
 
 ```
 Latency Results:
-deepseek v3 official: 1.23s
-Response: 我是 DeepSeek Chat，版本 3.0
+deepseek v3 official: 55.60s
+Response: 所有请求成功：1/1，平均耗时：55.60s ，平均 ttft: 54.69s，最后一次响应：我是DeepSeek-V3，一个由深度求索公司开发的智 
+能助手。
+```
+
+如果测试失败，会显示错误信息：
+
+```
+Latency Results:
+deepseek v3 official: -1.00s
+Error: 所有请求均失败：Error code: 401 - {'error': {'message': 'Authentication Fails (no such user)', 'type': 'authentication_error', 'param': None, 'code': 'invalid_request_error'}}; 总耗时：0.3908054828643799
 ```
 
 ## 注意事项
 
 - API 密钥会被加密存储在 `.api_keys.enc` 文件中，请勿手动修改该文件。
 - 测试使用的提示词可以在 `speed_test_prompt.txt` 中修改。
+- 默认每个端点的最大测试时间为20秒，最大请求次数为3次，可在 config.toml 中修改 test_config 参数进行调整。
