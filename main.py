@@ -7,154 +7,207 @@ import asyncio
 from tqdm.asyncio import tqdm as async_tqdm
 from cryptography.fernet import Fernet
 
-# 生成并保存加密密钥
-if not os.path.exists('fernet.key'):
-    with open('fernet.key', 'wb') as key_file:
-        key = Fernet.generate_key()
-        key_file.write(key)
 
-with open('fernet.key', 'rb') as key_file:
-    key = key_file.read()
+class ConfigManager:
+    @staticmethod
+    def load_config():
+        config = toml.load("config.toml")
+        return {
+            "endpoints": config.get("endpoints", []),
+            "test_config": config.get(
+                "test_config", {"max_total_time": 20, "max_requests": 3}
+            ),
+        }
 
-cipher_suite = Fernet(key)
+    @staticmethod
+    def save_config(config):
+        with open("config.toml", "w") as f:
+            toml.dump(config, f)
 
-def encrypt_api_key(api_key):
-    # 确保API key是字符串
-    if not isinstance(api_key, str):
-        api_key = str(api_key)
-    # 加密并返回base64编码的字符串
-    encrypted = cipher_suite.encrypt(api_key.encode())
-    return base64.urlsafe_b64encode(encrypted).decode()
 
-def decrypt_api_key(encrypted_key):
-    # 确保base64字符串长度是4的倍数
-    padding = len(encrypted_key) % 4
-    if padding:
-        encrypted_key += '=' * (4 - padding)
-    # 解码base64字符串
-    encrypted = base64.urlsafe_b64decode(encrypted_key.encode())
-    # 解密并返回原始字符串
-    return cipher_suite.decrypt(encrypted).decode()
+class APIKeyManager:
+    def __init__(self):
+        self.cipher_suite = self._init_cipher()
 
-def load_config():
-    with open('config.toml', 'r') as f:
-        config = toml.load(f)['endpoints']
-    
-    # 检查并处理API key
-    for endpoint in config:
-        if 'api_key' in endpoint and endpoint['api_key']:
-            # 将API key加密后存入 .api_keys.enc
-            name = endpoint['name'].replace(' ', '_').upper()
-            encrypted_key = encrypt_api_key(endpoint['api_key'])
-            with open('.api_keys.enc', 'a') as env_file:
-                env_file.write(f"{name}_API_KEY={encrypted_key}\n")
-            # 从config中删除api_key字段
-            del endpoint['api_key']
-            # 更新config文件
-            with open('config.toml', 'w') as config_file:
-                toml.dump({'endpoints': config}, config_file)
-    
-    return config
+    def _init_cipher(self):
+        if not os.path.exists("fernet.key"):
+            with open("fernet.key", "wb") as key_file:
+                key = Fernet.generate_key()
+                key_file.write(key)
 
-def save_config(config):
-    with open('config.toml', 'w') as f:
-        toml.dump({'endpoints': config}, f)
+        with open("fernet.key", "rb") as key_file:
+            return Fernet(key_file.read())
 
-def save_api_keys(config, api_keys):
-    with open('.api_keys.enc', 'w') as f:
-        for endpoint, api_key in zip(config, api_keys):
-            name = endpoint['name'].replace(' ', '_').upper()
-            f.write(f"{name}_API_KEY={api_key}\n")
+    def encrypt(self, api_key):
+        if not isinstance(api_key, str):
+            api_key = str(api_key)
+        encrypted = self.cipher_suite.encrypt(api_key.encode())
+        return base64.urlsafe_b64encode(encrypted).decode()
 
-def load_api_keys(config):
-    api_keys = {}
-    if not os.path.exists('.api_keys.enc'):
-        return None
-    with open('.api_keys.enc', 'r') as f:
-        for line in f:
-            if line.strip() and '=' in line:
-                key, value = line.strip().split('=', 1)
-                api_keys[key] = value
+    def decrypt(self, encrypted_key):
+        padding = len(encrypted_key) % 4
+        if padding:
+            encrypted_key += "=" * (4 - padding)
+        encrypted = base64.urlsafe_b64decode(encrypted_key.encode())
+        return self.cipher_suite.decrypt(encrypted).decode()
 
-    # 检查每个配置是否有对应的key
-    for endpoint in config:
-        name = endpoint['name'].replace(' ', '_').upper()
-        key_name = f"{name}_API_KEY"
-        if key_name not in api_keys:
-            while True:
-                api_key = input(f"找不到 {endpoint['name']} 的 API key，是否要添加？(y/n): ").strip().lower()
-                if api_key == 'y':
-                    api_key = input(f"请输入 {endpoint['name']} 的 API key: ").strip()
-                    if api_key.startswith('sk') and len(api_key) > 30:
-                        try:
-                            encrypted_key = encrypt_api_key(api_key)
-                            api_keys[key_name] = encrypted_key
-                            with open('.api_keys.enc', 'a') as env_file:
-                                env_file.write(f"{key_name}={encrypted_key}\n")
-                            break
-                        except Exception as e:
-                            print(f"加密API key时出错: {str(e)}")
-                            continue
-                    else:
-                        print("无效的API key格式，应以'sk-'开头且长度大于30")
-                elif api_key == 'n':
-                    break
-                else:
-                    print("请输入 y 或 n")
 
-    return api_keys if api_keys else None
+class APIKeyStorage:
+    @staticmethod
+    def load_keys():
+        if not os.path.exists(".api_keys.enc"):
+            return {}
 
-async def test_endpoint(endpoint, api_keys):
-    name = endpoint['name'].replace(' ', '_').upper()
+        with open(".api_keys.enc", "r") as f:
+            return dict(
+                line.strip().split("=", 1) for line in f if line.strip() and "=" in line
+            )
+
+    @staticmethod
+    def save_keys(keys):
+        with open(".api_keys.enc", "w") as f:
+            for key, value in keys.items():
+                f.write(f"{key}={value}\n")
+
+
+async def test_endpoint(
+    endpoint, api_keys, key_manager, prompt, max_total_time=20, max_requests=3
+):
+    name = endpoint["name"].replace(" ", "_").upper()
     api_key = api_keys.get(f"{name}_API_KEY")
     if not api_key:
         return -1, f"找不到 {endpoint['name']} 的 API key"
-        
+
     client = openai.AsyncOpenAI(
-        api_key=decrypt_api_key(api_key),
-        base_url=endpoint['url']
+        api_key=key_manager.decrypt(api_key), base_url=endpoint["url"]
     )
-    start_time = time.time()
-    try:
-        with open('speed_test_prompt.txt', 'r', encoding='utf-8') as f:
-            prompt = f.readlines()[0].split(": ")[1].strip('"')
-        
-        response = await client.chat.completions.create(
-            model=endpoint.get("model", "gpt-3.5-turbo"),
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0,
-            reasoning_effort='low'
+
+    total_time = 0
+    total_requests = 0
+    successful_requests = 0
+    errors = []
+    last_response = None
+
+    while total_time < max_total_time and total_requests < max_requests:
+        start_time = time.time()
+        try:
+            response = await client.chat.completions.create(
+                model=endpoint.get("model", "gpt-3.5-turbo"),
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0,
+                reasoning_effort="low",
+                timeout=30
+            )
+            latency = time.time() - start_time
+            total_time += latency
+            total_requests += 1
+            successful_requests += 1
+            last_response = response.choices[0].message.content
+        except Exception as e:
+            latency = time.time() - start_time
+            total_time += latency
+            total_requests += 1
+            errors.append(str(e))
+            break
+
+    if successful_requests == 0:
+        return -1, f"所有请求均失败：{', '.join(errors)}; 总耗时：{total_time}"
+
+    avg_latency = total_time / total_requests if total_requests > 0 else 0
+    if errors:
+        return (
+            total_time,
+            f"部分请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s，最后一次响应：{last_response}，错误：{', '.join(errors)}",
         )
-        return time.time() - start_time, response.choices[0].message.content
-    except Exception as e:
-        return -1, f'发生错误：{str(e)}；耗时：{time.time() - start_time}s'
+    return (
+        total_time,
+        f"所有请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s，最后一次响应：{last_response}",
+    )
+
 
 async def main():
-    # 检查并创建配置文件
-    if not os.path.exists('config.toml'):
-        with open('config.toml', 'w') as f:
-            toml.dump({'endpoints': []}, f)
+    if not os.path.exists("config.toml"):
+        ConfigManager.save_config({"test_config": {}, "endpoints": [{}]})
 
-    # 加载并验证配置
-    config = load_config()
-    if not isinstance(config, list):
-        print("配置文件格式错误，应为列表")
+    config = ConfigManager.load_config()
+    endpoints = config["endpoints"]
+    test_config = config["test_config"]
+
+    if not isinstance(endpoints, list):
+        print("配置文件格式错误，endpoints 应为列表")
         return
 
-    # 加载并检查API keys
-    api_keys = load_api_keys(config)
+    key_manager = APIKeyManager()
+    api_keys = APIKeyStorage.load_keys()
 
-    # 并行测试所有端点，显示进度条
-    tasks = [test_endpoint(endpoint, api_keys) for endpoint in config]
+    # 处理API keys
+    for endpoint in endpoints:
+        name = endpoint["name"].replace(" ", "_").upper()
+        key_name = f"{name}_API_KEY"
+        if "api_key" in endpoint:
+            # 优先使用config中的api_key
+            api_key = endpoint["api_key"]
+            try:
+                encrypted_key = key_manager.encrypt(api_key)
+                api_keys[key_name] = encrypted_key
+                APIKeyStorage.save_keys(api_keys)
+                del endpoint["api_key"]  # 删除config中的api_key
+                ConfigManager.save_config(
+                    {
+                        "test_config": test_config,
+                        "endpoints": endpoints,
+                    }
+                )
+            except Exception as e:
+                print(f"加密API key时出错: {str(e)}")
+
+        # 如果api_keys文件中没有，则提示用户输入
+        if key_name not in api_keys:
+            api_key = (
+                input(f"找不到 {endpoint['name']} 的 API key，是否要添加？(y/n): ")
+                .strip()
+                .lower()
+            )
+            if api_key == "y":
+                while True:
+                    api_key = input(f"请输入 {endpoint['name']} 的 API key: ").strip()
+                    if api_key.startswith("sk") and len(api_key) > 30:
+                        try:
+                            encrypted_key = key_manager.encrypt(api_key)
+                            api_keys[key_name] = encrypted_key
+                            APIKeyStorage.save_keys(api_keys)
+                            break
+                        except Exception as e:
+                            print(f"加密API key时出错: {str(e)}")
+                    else:
+                        print("无效的 API key 格式，应以 'sk' 开头且长度大于 30")
+
+    # 读取 prompt
+    with open("speed_test_prompt.txt", "r", encoding="utf-8") as f:
+        prompt = f.readlines()[0].split(": ")[1].strip('"')
+
+    # 测试所有端点
+    tasks = [
+        test_endpoint(
+            endpoint,
+            api_keys,
+            key_manager,
+            prompt,
+            test_config["max_total_time"],
+            test_config["max_requests"],
+        )
+        for endpoint in endpoints
+    ]
     results = await async_tqdm.gather(*tasks, desc="Testing endpoints")
 
     # 显示结果
     print("\nLatency Results:")
-    for endpoint, result in zip(config, results):
+    for endpoint, result in zip(endpoints, results):
         latency, response = result
         print(f"{endpoint['name']}: {latency:.2f}s")
         print(f"{'Response' if latency != -1 else 'Error'}: {response}\n")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
