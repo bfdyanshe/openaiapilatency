@@ -1,0 +1,7 @@
+[
+    {
+        "name": "deepseek API",
+        "url": "https://api.deepseek.com",
+        "model": "deepseek-chat"
+    }
+]
