@@ -5,10 +5,6 @@ import base64
 import openai
 from tqdm import tqdm
 from cryptography.fernet import Fernet
-from dotenv import load_dotenv
-
-# 加载环境变量
-load_dotenv()
 
 # 生成并保存加密密钥
 if not os.path.exists('fernet.key'):
@@ -49,7 +45,7 @@ def load_config():
             # 将API key加密后存入.env
             name = endpoint['name'].replace(' ', '_').upper()
             encrypted_key = encrypt_api_key(endpoint['api_key'])
-            with open('.env', 'a') as env_file:
+            with open('api_keys.enc', 'a') as env_file:
                 env_file.write(f"{name}_API_KEY={encrypted_key}\n")
             # 从config中删除api_key字段
             del endpoint['api_key']
@@ -64,16 +60,16 @@ def save_config(config):
         json.dump(config, f, indent=2)
 
 def save_api_keys(config, api_keys):
-    with open('.env', 'w') as f:
+    with open('api_keys.enc', 'w') as f:
         for endpoint, api_key in zip(config, api_keys):
             name = endpoint['name'].replace(' ', '_').upper()
             f.write(f"{name}_API_KEY={api_key}\n")
 
 def load_api_keys(config):
     api_keys = {}
-    if not os.path.exists('.env'):
+    if not os.path.exists('api_keys.enc'):
         return None
-    with open('.env', 'r') as f:
+    with open('api_keys.enc', 'r') as f:
         for line in f:
             if line.strip() and '=' in line:
                 key, value = line.strip().split('=', 1)
@@ -88,7 +84,7 @@ def load_api_keys(config):
                 api_key = input(f"找不到 {endpoint['name']} 的 API key，是否要添加？(y/n): ").strip().lower()
                 if api_key == 'y':
                     api_key = input(f"请输入 {endpoint['name']} 的 API key: ").strip()
-                    if api_key.startswith('sk-') and len(api_key) > 30:
+                    if api_key.startswith('sk') and len(api_key) > 30:
                         try:
                             encrypted_key = encrypt_api_key(api_key)
                             api_keys[key_name] = encrypted_key
@@ -125,7 +121,9 @@ def test_endpoint(endpoint, api_keys):
         response = client.chat.completions.create(
             model=endpoint.get("model", "gpt-3.5-turbo"),
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=100
+            max_tokens=100,
+            temperature=0,
+            reasoning_effort='low'
         )
         return time.time() - start_time, response.choices[0].message.content
     except Exception as e:

@@ -1,28 +1,37 @@
 [
   {
-    "name": "deepseek API 1",
-    "url": "https://api.deepseek.com",
-    "model": "deepseek-chat",
-    "api_key": ""
-  },
-  {
-    "name": "deepseek API 2",
+    "name": "deepseek v3 official",
     "url": "https://api.deepseek.com",
     "model": "deepseek-chat"
   },
   {
-    "name": "deepseek API 3",
+    "name": "deepseek r1 official",
     "url": "https://api.deepseek.com",
-    "model": "deepseek-chat"
+    "model": "deepseek-reasoner"
   },
   {
-    "name": "deepseek API 4",
-    "url": "https://api.deepseek.com",
-    "model": "deepseek-chat"
+    "name": "PPIO ds r1",
+    "url": "https://api.ppinfra.com/v3/openai",
+    "model": "deepseek/deepseek-r1/community"
   },
   {
-    "name": "deepseek API 5",
-    "url": "https://api.deepseek.com",
-    "model": "deepseek-chat"
+    "name": "PPIO ds v3",
+    "url": "https://api.ppinfra.com/v3/openai",
+    "model": "deepseek/deepseek-v3/community"
+  },
+  {
+    "name": "siliconflow ds v3",
+    "url": "https://api.siliconflow.cn/v1",
+    "model": "deepseek-ai/DeepSeek-V3"
+  },
+  {
+    "name": "siliconflow ds r1",
+    "url": "https://api.siliconflow.cn/v1",
+    "model": "deepseek-ai/DeepSeek-R1"
+  },
+  {
+    "name": "siliconflow ds qwen72b",
+    "url": "https://api.siliconflow.cn/v1",
+    "model": "Qwen/Qwen2.5-72B-Instruct-128K"
   }
 ]
