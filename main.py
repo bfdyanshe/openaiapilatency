@@ -3,7 +3,8 @@ import toml
 import time
 import base64
 import openai
-from tqdm import tqdm
+import asyncio
+from tqdm.asyncio import tqdm as async_tqdm
 from cryptography.fernet import Fernet
 
 # 生成并保存加密密钥
@@ -103,13 +104,13 @@ def load_api_keys(config):
 
     return api_keys if api_keys else None
 
-def test_endpoint(endpoint, api_keys):
+async def test_endpoint(endpoint, api_keys):
     name = endpoint['name'].replace(' ', '_').upper()
     api_key = api_keys.get(f"{name}_API_KEY")
     if not api_key:
         return -1, f"找不到 {endpoint['name']} 的 API key"
         
-    client = openai.OpenAI(
+    client = openai.AsyncOpenAI(
         api_key=decrypt_api_key(api_key),
         base_url=endpoint['url']
     )
@@ -118,7 +119,7 @@ def test_endpoint(endpoint, api_keys):
         with open('speed_test_prompt.txt', 'r', encoding='utf-8') as f:
             prompt = f.readlines()[0].split(": ")[1].strip('"')
         
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=endpoint.get("model", "gpt-3.5-turbo"),
             messages=[{"role": "user", "content": prompt}],
             max_tokens=100,
@@ -129,7 +130,7 @@ def test_endpoint(endpoint, api_keys):
     except Exception as e:
         return -1, f'发生错误：{str(e)}；耗时：{time.time() - start_time}s'
 
-def main():
+async def main():
     # 检查并创建配置文件
     if not os.path.exists('config.toml'):
         with open('config.toml', 'w') as f:
@@ -144,24 +145,16 @@ def main():
     # 加载并检查API keys
     api_keys = load_api_keys(config)
 
-    # 测试所有端点
-    results = []
-    for endpoint in tqdm(config, desc="Testing endpoints"):
-        result = test_endpoint(endpoint, api_keys)
-        if result is not None:
-            latency, response = result
-            results.append({
-                'name': endpoint['name'],
-                'latency': latency,
-                'response': response
-            })
+    # 并行测试所有端点，显示进度条
+    tasks = [test_endpoint(endpoint, api_keys) for endpoint in config]
+    results = await async_tqdm.gather(*tasks, desc="Testing endpoints")
 
     # 显示结果
     print("\nLatency Results:")
-    for result in results:
-        latency = result['latency']
-        print(f"{result['name']}: {latency:.2f}s")
-        print(f"{'Response' if latency != -1 else 'Error'}: {result['response']}\n")
+    for endpoint, result in zip(config, results):
+        latency, response = result
+        print(f"{endpoint['name']}: {latency:.2f}s")
+        print(f"{'Response' if latency != -1 else 'Error'}: {response}\n")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
