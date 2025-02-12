@@ -76,9 +76,7 @@ def test_endpoint(endpoint, api_key):
             messages=[{"role": "user", "content": prompt}],
             max_tokens=100
         )
-        print(f"\nModel response from {endpoint['name']}:")
-        print(response.choices[0].message.content)
-        return time.time() - start_time
+        return time.time() - start_time, response.choices[0].message.content
     except Exception as e:
         print(f"Error testing {endpoint['name']}: {str(e)}")
         return None
@@ -116,17 +114,20 @@ def main():
     # 测试所有端点
     results = []
     for endpoint in tqdm(config, desc="Testing endpoints"):
-        latency = test_endpoint(endpoint, api_key)
-        if latency is not None:
+        result = test_endpoint(endpoint, api_key)
+        if result is not None:
+            latency, response = result
             results.append({
                 'name': endpoint['name'],
-                'latency': latency
+                'latency': latency,
+                'response': response
             })
 
     # 显示结果
     print("\nLatency Results:")
     for result in results:
         print(f"{result['name']}: {result['latency']:.2f}s")
+        print(f"Response: {result['response']}\n")
 
 if __name__ == "__main__":
     main()
