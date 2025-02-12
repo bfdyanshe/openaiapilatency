@@ -1,5 +1,5 @@
 import os
-import json
+import toml
 import time
 import base64
 import openai
@@ -36,40 +36,40 @@ def decrypt_api_key(encrypted_key):
     return cipher_suite.decrypt(encrypted).decode()
 
 def load_config():
-    with open('config.json', 'r') as f:
-        config = json.load(f)
+    with open('config.toml', 'r') as f:
+        config = toml.load(f)['endpoints']
     
     # 检查并处理API key
     for endpoint in config:
         if 'api_key' in endpoint and endpoint['api_key']:
-            # 将API key加密后存入.env
+            # 将API key加密后存入 .api_keys.enc
             name = endpoint['name'].replace(' ', '_').upper()
             encrypted_key = encrypt_api_key(endpoint['api_key'])
-            with open('api_keys.enc', 'a') as env_file:
+            with open('.api_keys.enc', 'a') as env_file:
                 env_file.write(f"{name}_API_KEY={encrypted_key}\n")
             # 从config中删除api_key字段
             del endpoint['api_key']
             # 更新config文件
-            with open('config.json', 'w') as config_file:
-                json.dump(config, config_file, indent=2)
+            with open('config.toml', 'w') as config_file:
+                toml.dump({'endpoints': config}, config_file)
     
     return config
 
 def save_config(config):
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=2)
+    with open('config.toml', 'w') as f:
+        toml.dump({'endpoints': config}, f)
 
 def save_api_keys(config, api_keys):
-    with open('api_keys.enc', 'w') as f:
+    with open('.api_keys.enc', 'w') as f:
         for endpoint, api_key in zip(config, api_keys):
             name = endpoint['name'].replace(' ', '_').upper()
             f.write(f"{name}_API_KEY={api_key}\n")
 
 def load_api_keys(config):
     api_keys = {}
-    if not os.path.exists('api_keys.enc'):
+    if not os.path.exists('.api_keys.enc'):
         return None
-    with open('api_keys.enc', 'r') as f:
+    with open('.api_keys.enc', 'r') as f:
         for line in f:
             if line.strip() and '=' in line:
                 key, value = line.strip().split('=', 1)
@@ -88,7 +88,7 @@ def load_api_keys(config):
                         try:
                             encrypted_key = encrypt_api_key(api_key)
                             api_keys[key_name] = encrypted_key
-                            with open('.env', 'a') as env_file:
+                            with open('.api_keys.enc', 'a') as env_file:
                                 env_file.write(f"{key_name}={encrypted_key}\n")
                             break
                         except Exception as e:
@@ -131,9 +131,9 @@ def test_endpoint(endpoint, api_keys):
 
 def main():
     # 检查并创建配置文件
-    if not os.path.exists('config.json'):
-        with open('config.json', 'w') as f:
-            json.dump([], f)
+    if not os.path.exists('config.toml'):
+        with open('config.toml', 'w') as f:
+            toml.dump({'endpoints': []}, f)
 
     # 加载并验证配置
     config = load_config()
@@ -159,8 +159,9 @@ def main():
     # 显示结果
     print("\nLatency Results:")
     for result in results:
-        print(f"{result['name']}: {result['latency']:.2f}s")
-        print(f"Response: {result['response']}\n")
+        latency = result['latency']
+        print(f"{result['name']}: {latency:.2f}s")
+        print(f"{'Response' if latency != -1 else 'Error'}: {result['response']}\n")
 
 if __name__ == "__main__":
     main()

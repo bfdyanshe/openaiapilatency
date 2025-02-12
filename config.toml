@@ -1,0 +1,25 @@
+[[endpoints]]
+name = "deepseek v3 official"
+url = "https://api.deepseek.com"
+model = "deepseek-chat"
+api_key = ""
+
+# [[endpoints]]
+# name = "deepseek r1 official"
+# url = "https://api.deepseek.com"
+# model = "deepseek-reasoner"
+
+[[endpoints]]
+name = "PPIO ds v3"
+url = "https://api.ppinfra.com/v3/openai"
+model = "deepseek/deepseek-v3/community"
+
+[[endpoints]]
+name = "siliconflow ds v3"
+url = "https://api.siliconflow.cn/v1"
+model = "deepseek-ai/DeepSeek-V3"
+
+[[endpoints]]
+name = "siliconflow ds qwen72b"
+url = "https://api.siliconflow.cn/v1"
+model = "Qwen/Qwen2.5-72B-Instruct-128K"
