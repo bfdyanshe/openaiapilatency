@@ -87,23 +87,36 @@ async def test_endpoint(
     successful_requests = 0
     errors = []
     last_response = None
+    total_ttft = 0
+    first_token = ""
 
     while total_time < max_total_time and total_requests < max_requests:
         start_time = time.time()
         try:
-            response = await client.chat.completions.create(
+            first_token_time = None
+            ttft_info = ""
+            last_response = ""
+            stream = await client.chat.completions.create(
                 model=endpoint.get("model", "gpt-3.5-turbo"),
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=100,
                 temperature=0,
-                reasoning_effort="low",
-                timeout=30
+                timeout=60,
+                stream=True,
             )
+            async for chunk in stream:
+                if not chunk.choices[0].delta.content:
+                    continue
+                if not first_token_time:
+                    first_token_time = time.time() - start_time
+                    first_token = chunk.choices[0].delta.content
+                last_response += chunk.choices[0].delta.content
             latency = time.time() - start_time
             total_time += latency
             total_requests += 1
             successful_requests += 1
-            last_response = response.choices[0].message.content
+            if first_token_time:
+                total_ttft += first_token_time
         except Exception as e:
             latency = time.time() - start_time
             total_time += latency
@@ -115,14 +128,17 @@ async def test_endpoint(
         return -1, f"所有请求均失败：{', '.join(errors)}; 总耗时：{total_time}"
 
     avg_latency = total_time / total_requests if total_requests > 0 else 0
+    ttft_info = (
+        "" if total_ttft == 0 else f"，平均 ttft: {total_ttft/successful_requests:.2f}s"
+    )
     if errors:
         return (
             total_time,
-            f"部分请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s，最后一次响应：{last_response}，错误：{', '.join(errors)}",
+            f"部分请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s {ttft_info}，最后一次响应：{last_response}，错误：{', '.join(errors)}",
         )
     return (
         total_time,
-        f"所有请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s，最后一次响应：{last_response}",
+        f"所有请求成功：{successful_requests}/{total_requests}，平均耗时：{avg_latency:.2f}s {ttft_info}，最后一次响应：{last_response}",
     )
 
 
