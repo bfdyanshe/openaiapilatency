@@ -41,7 +41,23 @@ def decrypt_api_key(encrypted_key):
 
 def load_config():
     with open('config.json', 'r') as f:
-        return json.load(f)
+        config = json.load(f)
+    
+    # 检查并处理API key
+    for endpoint in config:
+        if 'api_key' in endpoint and endpoint['api_key']:
+            # 将API key加密后存入.env
+            name = endpoint['name'].replace(' ', '_').upper()
+            encrypted_key = encrypt_api_key(endpoint['api_key'])
+            with open('.env', 'a') as env_file:
+                env_file.write(f"{name}_API_KEY={encrypted_key}\n")
+            # 从config中删除api_key字段
+            del endpoint['api_key']
+            # 更新config文件
+            with open('config.json', 'w') as config_file:
+                json.dump(config, config_file, indent=2)
+    
+    return config
 
 def save_config(config):
     with open('config.json', 'w') as f:

@@ -1,27 +1,28 @@
 [
-    {
-        "name": "deepseek API 1",
-        "url": "https://api.deepseek.com",
-        "model": "deepseek-chat"
-    },
-    {
-        "name": "deepseek API 2",
-        "url": "https://api.deepseek.com",
-        "model": "deepseek-chat"
-    },
-    {
-        "name": "deepseek API 3",
-        "url": "https://api.deepseek.com",
-        "model": "deepseek-chat"
-    },
-    {
-        "name": "deepseek API 4",
-        "url": "https://api.deepseek.com",
-        "model": "deepseek-chat"
-    },
-    {
-        "name": "deepseek API 5",
-        "url": "https://api.deepseek.com",
-        "model": "deepseek-chat"
-    }
+  {
+    "name": "deepseek API 1",
+    "url": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "api_key": ""
+  },
+  {
+    "name": "deepseek API 2",
+    "url": "https://api.deepseek.com",
+    "model": "deepseek-chat"
+  },
+  {
+    "name": "deepseek API 3",
+    "url": "https://api.deepseek.com",
+    "model": "deepseek-chat"
+  },
+  {
+    "name": "deepseek API 4",
+    "url": "https://api.deepseek.com",
+    "model": "deepseek-chat"
+  },
+  {
+    "name": "deepseek API 5",
+    "url": "https://api.deepseek.com",
+    "model": "deepseek-chat"
+  }
 ]
